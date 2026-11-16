@@ -8,7 +8,7 @@ cmake_minimum_required(VERSION 3.21)
 
 # [BEGIN set_project_name]
 # Set your project name. This will be the name of your SKSE .dll file.
-project(QuestJournalOverhaul VERSION 1.2.0 LANGUAGES CXX)
+project(QuestJournalOverhaul VERSION 1.2.1 LANGUAGES CXX)
 
 # [END set_project_name]
 
@@ -43,9 +43,16 @@ add_commonlibsse_plugin(${PROJECT_NAME} SOURCES src/main.cpp
     src/EventProcessor.cpp
     src/Utility.cpp
     src/QuestMenu.cpp
+    src/QuestDataSnapshot.cpp
     src/Serialization.cpp) # <--- specifies plugin.cpp
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_23) # <--- use C++23 standard
 target_precompile_headers(${PROJECT_NAME} PRIVATE src/PCH.h) # <--- PCH.h is required!
+
+# Optional: emit a linker .map file next to the DLL, useful when triaging a crash stack.
+option(QJO_LINK_MAP "Write a linker map file next to the DLL" OFF)
+if(QJO_LINK_MAP AND MSVC)
+    target_link_options(${PROJECT_NAME} PRIVATE /MAP)
+endif()
 
 # When your SKSE .dll is compiled, this will automatically copy the .dll into your mods folder.
 # Only works if you configure DEPLOY_ROOT above (or set the SKYRIM_MODS_FOLDER environment variable)

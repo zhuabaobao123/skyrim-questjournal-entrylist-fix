@@ -9,19 +9,14 @@
 
 namespace Scaleform {
     QuestMenu::QuestMenu() {
-        auto scaleformManager = RE::BSScaleformManager::GetSingleton();
-        scaleformManager->LoadMovieEx(this, MENU_PATH, [this](RE::GFxMovieDef* a_def) {
-            using StateType = RE::GFxState::StateType;
-
-            fxDelegate.reset(new RE::FxDelegate());
-            fxDelegate->RegisterHandler(this);
-            a_def->SetState(StateType::kExternalInterface, fxDelegate.get());
-            fxDelegate->Release();
-
-            auto logger = new Logger<QuestMenu>(); 
-            a_def->SetState(StateType::kLog, logger);
-            logger->Release();
-        });
+        // Load the movie through the engine's own factory. CLSSE's LoadMovieEx builds its own
+        // GFxMovieDef::MemoryParams and hands it to GFxMovieDefImpl::CreateInstance, and that
+        // struct does not match what this runtime expects - the game reads one of its fields as a
+        // pointer and the access violation lands in CreateInstance (seen at rcx=0x2000). LoadMovie
+        // is what every native menu uses, so use it too.
+        if (auto scaleformManager = RE::BSScaleformManager::GetSingleton()) {
+            scaleformManager->LoadMovie(this, uiMovie, MENU_PATH);
+        }
 
         inputContext = Context::kJournal;
         depthPriority = 5;

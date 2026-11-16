@@ -3,8 +3,11 @@
 #include "QuestMenu.h"
 #include "Scaleform.h"
 #include "Serialization.h"
+#include "QuestDataSnapshot.h"
 
-RE::GFxValue entryList;
+// A movie-independent copy of the JournalMenu's titleList.entryList. Never hold the AS object
+// itself across movies - see QuestDataSnapshot.h for why.
+QuestSnapshot::Node entryListSnapshot;
 std::string lastQuestFormID; 
 std::string dt;
 bool hideCompletedState;
@@ -30,14 +33,17 @@ RE::BSEventNotifyControl EventProcessor::ProcessEvent(const RE::MenuOpenCloseEve
                     Scaleform::showOnMapStatus = false;
                 } else {
                     RE::GFxValue titleList;
-                    entryList = RE::GFxValue();
+                    entryListSnapshot = QuestSnapshot::Node{};
                     journal->uiMovie->Invoke("_root.QuestJournalFader.Menu_mc.QuestsFader.Page_mc.QJO_LoadQuests",
                                                 nullptr, nullptr, 0);
                     journal->uiMovie->GetVariable(&titleList,
                                                     "_root.QuestJournalFader.Menu_mc.QuestsFader.Page_mc.TitleList");
                     if (titleList.HasMember("entryList")) {
                         logger::info("Retrieving quests data");
-                        titleList.GetMember("entryList", &entryList);
+                        RE::GFxValue rawEntryList;
+                        if (titleList.GetMember("entryList", &rawEntryList)) {
+                            entryListSnapshot = QuestSnapshot::Capture(rawEntryList);
+                        }
                     }
 
                     if (ui->IsMenuOpen(RE::MapMenu::MENU_NAME)) {
@@ -61,7 +67,20 @@ RE::BSEventNotifyControl EventProcessor::ProcessEvent(const RE::MenuOpenCloseEve
                 return RE::BSEventNotifyControl::kContinue;
             }
         } else if (event->menuName == Scaleform::QuestMenu::MENU_NAME) {
-            if (auto menu = ui->GetMenu(Scaleform::QuestMenu::MENU_NAME); menu) {
+            // Done before the early-out below so a QuestMenu without a movie still restores the
+            // map's marker pick distance.
+            if (ui->IsMenuOpen(RE::MapMenu::MENU_NAME)) {
+                SetINIValue("fMaxMarkerSelectionDist:MapMenu", 0.0);
+            }
+
+            auto menu = ui->GetMenu(Scaleform::QuestMenu::MENU_NAME);
+            if (menu && !menu->uiMovie) {
+                // Every call below goes through uiMovie, so a movie that failed to load has to be
+                // caught here instead of turning into an access violation.
+                logger::warn("QuestMenu was opened with no movie loaded, skipping the quest list update.");
+                return RE::BSEventNotifyControl::kContinue;
+            }
+            if (menu) {
                 if (ui->IsMenuOpen(RE::CursorMenu::MENU_NAME)) {
                     auto uiMessageQueue = RE::UIMessageQueue::GetSingleton();
                     if (uiMessageQueue) {
@@ -76,7 +95,15 @@ RE::BSEventNotifyControl EventProcessor::ProcessEvent(const RE::MenuOpenCloseEve
                 std::array<RE::GFxValue, 1> viewedQuestsString;
                 std::array<RE::GFxValue, 2> playerFactions;
                 std::array<RE::GFxValue, 1> hideCompleted;
-                configArgs[0] = entryList;
+                if (auto* movie = menu->uiMovie.get();
+                    QuestSnapshot::Build(movie, entryListSnapshot, configArgs[0])) {
+                    logger::info("Rebuilt the quest entry list inside the QuestMenu movie.");
+                } else {
+                    // Leave the parameter undefined rather than a half-built object: the SWF then
+                    // reads an empty list instead of a partial one.
+                    configArgs[0].SetUndefined();
+                    logger::warn("Failed to rebuild quest entries, QuestMenu gets an undefined list.");
+                }
                 configArgs[1] = hideCompletedState;
                 configArgs[2] = mainQuestsIDs;
                 configArgs[3] = factionQuestsIDs;
@@ -108,10 +135,6 @@ RE::BSEventNotifyControl EventProcessor::ProcessEvent(const RE::MenuOpenCloseEve
                 menu->uiMovie->Invoke("_root.QuestJournal_mc.SetHeaderInfo", nullptr, headerInfo.data(),
                                       headerInfo.size());
                 menu->uiMovie->Invoke("_root.QuestJournal_mc.SetGamepad", nullptr, gamepad.data(), gamepad.size());
-            }
-
-            if (ui->IsMenuOpen(RE::MapMenu::MENU_NAME)) {
-                SetINIValue("fMaxMarkerSelectionDist:MapMenu", 0.0);
             }
         }
     }

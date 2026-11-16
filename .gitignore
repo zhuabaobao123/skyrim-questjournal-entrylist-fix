@@ -1,0 +1,8 @@
+build/
+install/
+CMakeUserPresets.json
+*.map
+*.pdb
+*.user
+.vs/
+dist/

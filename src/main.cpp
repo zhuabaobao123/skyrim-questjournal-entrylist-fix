@@ -15,6 +15,10 @@ void SKSEMessageHandler(SKSE::MessagingInterface::Message* message) {
         case (SKSE::MessagingInterface::kDataLoaded):
             RE::UI::GetSingleton()->AddEventSink<RE::MenuOpenCloseEvent>(eventProcessor);
             Scaleform::QuestMenu::Register();
+            // Installed here, not in SKSEPlugin_Load, so this mod owns the JournalMenu vtable slots
+            // after every other plugin has loaded. StayAtSystemPage takes the same slots, and
+            // whichever plugin writes last is the only one that runs.
+            JournalMenuEx::InstallHooks();
             break;
 
         case (SKSE::MessagingInterface::kInputLoaded):
@@ -55,8 +59,7 @@ extern "C" [[maybe_unused]] __declspec(dllexport) bool SKSEPlugin_Load(const SKS
     SKSE::GetMessagingInterface()->RegisterListener(SKSEMessageHandler);
     LoadAllQuestsSupplementalData();
     LoadQuestsCategoriesData();
-    JournalMenuEx::InstallHooks();
-    logger::info("Quest Journal is in Player's pocket!");
+    logger::info("Quest Journal is in Player's pocket! [entryList deep-copy build]");
 
     return true;
 }

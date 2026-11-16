@@ -81,6 +81,16 @@ public:
     {
         using Message = RE::UI_MESSAGE_TYPE;
         if (a_message.type == Message::kShow) {
+            if (!uiMovie) {
+                // The engine dereferences uiMovie unconditionally further down in its own
+                // ProcessMessage, so this is always fatal. It happens when the winning
+                // quest_journal.swf needs an asset that is not installed: the movie silently fails
+                // to create, the menu is cached with a null movie, and the next show crashes on
+                // [uiMovie+0x58]. Logged so a broken install is obvious instead of a random CTD.
+                logger::warn("JournalMenu is being shown with no movie loaded - the winning quest_journal.swf failed to create. "
+                             "Make sure every SWF it imports is installed.");
+            }
+
             auto ui = RE::UI::GetSingleton();
             auto uiStr = RE::InterfaceStrings::GetSingleton();
             if (ui->IsMenuOpen(uiStr->mapMenu)) {
