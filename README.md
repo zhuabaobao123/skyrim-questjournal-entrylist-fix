@@ -4,6 +4,8 @@ A drop-in replacement `QuestJournalOverhaul.dll` for
 [Quest Journal Overhaul](https://www.nexusmods.com/skyrimspecialedition/mods/141295) that fixes the
 crash which happens after opening and closing the quest log a few times.
 
+Download: [Nexus Mods 199346](https://www.nexusmods.com/skyrimspecialedition/mods/199346)
+
 Nothing else changes. The original mod's SWFs and JSON still drive the interface, so skins
 (including the Untarnished UI reskin) keep working, and no plugin or record is touched.
 
