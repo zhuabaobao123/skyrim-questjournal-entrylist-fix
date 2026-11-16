@@ -65,15 +65,19 @@ namespace Scaleform {
     }
 
     void QuestMenu::PlaySound(const RE::FxDelegateArgs& a_params) {
-        assert(a_params.GetArgCount() == 1);
-        assert(a_params[0].IsString());
+        if (a_params.GetArgCount() < 1 || !a_params[0].IsString()) {
+            logger::warn("PlaySound called with unexpected arguments.");
+            return;
+        }
 
         RE::PlaySound(a_params[0].GetString());
     }
     
     void QuestMenu::ToggleQuestActive(const RE::FxDelegateArgs& a_params) {
-        assert(a_params.GetArgCount() == 1);
-        assert(a_params[0].IsString());
+        if (a_params.GetArgCount() < 1 || !a_params[0].IsString()) {
+            logger::warn("ToggleQuestActive called with unexpected arguments.");
+            return;
+        }
 
         RE::TESQuest* quest = FindQuestByFormIDString(a_params[0].GetString());
         if (quest == nullptr) {
@@ -89,16 +93,30 @@ namespace Scaleform {
         }
     }
 
-    void QuestMenu::RequestQuestLocation(const RE::FxDelegateArgs& a_params) {
-        assert(a_params.GetArgCount() == 0);
-
+    void QuestMenu::RequestQuestLocation(const RE::FxDelegateArgs&) {
         auto ui = RE::UI::GetSingleton();
         if (auto menu = ui->GetMenu(Scaleform::QuestMenu::MENU_NAME); menu) {
+            if (!menu->uiMovie) {
+                return;
+            }
+
             RE::GFxValue currentQuest;
             menu->uiMovie->GetVariable(&currentQuest, "_root.QuestJournal_mc.currentQuest");
+            if (!currentQuest.IsObject()) {
+                // The SWF leaves currentQuest undefined whenever the list is empty - which is
+                // exactly what happens right after "hide completed" removes the last quest. Every
+                // GFxValue accessor only asserts in debug builds and dereferences the null object
+                // interface in a release build, so the type has to be checked here.
+                return;
+            }
+
             RE::GFxValue formID;
             if (currentQuest.HasMember("formID")) {
                 currentQuest.GetMember("formID", &formID);
+                if (!formID.IsString()) {
+                    return;
+                }
+
                 RE::TESQuest* quest = FindQuestByFormIDString(formID.GetString());
 
                 if (quest) {
@@ -127,8 +145,10 @@ namespace Scaleform {
     }
 
     void QuestMenu::ShowQuestOnMap(const RE::FxDelegateArgs& a_params) {
-        assert(a_params.GetArgCount() == 1); 
-        assert(a_params[0].IsNumber());
+        if (a_params.GetArgCount() < 1 || !a_params[0].IsNumber()) {
+            logger::warn("ShowQuestOnMap called with unexpected arguments.");
+            return;
+        }
 
         questTargetID = static_cast<uint32_t>(a_params[0].GetNumber());
 

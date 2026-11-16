@@ -15,6 +15,53 @@ bool Scaleform::showOnMapStatus;
 bool journalHotkey;
 uint32_t Scaleform::questTargetID;
 
+namespace {
+
+    // Reads the quest menu's state back into this mod's globals.
+    //
+    // Every read is type-checked: the SWF leaves currentQuest undefined whenever the quest list is
+    // empty, which is exactly the state "hide completed" produces when the last quest was already
+    // done. GFxValue's accessors only assert in debug builds - in a release build they dereference
+    // the null object interface and crash the game.
+    void SaveQuestMenuState(RE::IMenu* a_menu) {
+        if (!a_menu || !a_menu->uiMovie) {
+            return;
+        }
+
+        logger::info("Saving last quest displayed.");
+        RE::GFxValue currentQuest;
+        a_menu->uiMovie->GetVariable(&currentQuest, "_root.QuestJournal_mc.currentQuest");
+        if (currentQuest.IsObject() && currentQuest.HasMember("formID")) {
+            RE::GFxValue formID;
+            currentQuest.GetMember("formID", &formID);
+            if (formID.IsString()) {
+                lastQuestFormID = formID.GetString();
+                logger::info("Last displayed quest: {}", lastQuestFormID);
+            }
+        }
+
+        logger::info("Saving viewed quests.");
+        RE::GFxValue viewedQuests;
+        a_menu->uiMovie->GetVariable(&viewedQuests, "_root.QuestJournal_mc.aViewedQuests");
+        if (viewedQuests.IsArray()) {
+            for (std::uint32_t i = 0; i < viewedQuests.GetArraySize(); ++i) {
+                RE::GFxValue entry;
+                if (viewedQuests.GetElement(i, &entry) && entry.IsString()) {
+                    Serialization::ViewedQuests.insert(entry.GetString());
+                }
+            }
+        }
+
+        logger::info("Saving Hide Completed state.");
+        RE::GFxValue hideCompleted;
+        a_menu->uiMovie->GetVariable(&hideCompleted, "_root.QuestJournal_mc.bHideCompleted");
+        if (hideCompleted.IsBool()) {
+            hideCompletedState = hideCompleted.GetBool();
+        }
+    }
+
+}
+
 RE::BSEventNotifyControl EventProcessor::ProcessEvent(const RE::MenuOpenCloseEvent* event,
                                                       RE::BSTEventSource<RE::MenuOpenCloseEvent>*) {
     if (!event) {
@@ -163,27 +210,7 @@ RE::BSEventNotifyControl EventProcessor::ProcessEvent(RE::InputEvent* const* eve
                 buttonEvent->QUserEvent() == userEvent->journal) {
                 if (ui->IsMenuOpen(Scaleform::QuestMenu::MENU_NAME)) {
                     if (auto menu = ui->GetMenu(Scaleform::QuestMenu::MENU_NAME); menu) {
-                        logger::info("Saving last quest displayed.");
-                        RE::GFxValue lastQuest1;
-                        RE::GFxValue lastQuest2;
-                        menu->uiMovie->GetVariable(&lastQuest1, "_root.QuestJournal_mc.currentQuest");
-                        if (lastQuest1.HasMember("formID")) {
-                            lastQuest1.GetMember("formID", &lastQuest2);
-                            lastQuestFormID = lastQuest2.GetString();
-                            logger::info("Last displayed quest: {}", lastQuestFormID);
-                        }
-                        logger::info("Saving viewed quests.");
-                        RE::GFxValue viewedQuestsList;
-                        menu->uiMovie->GetVariable(&viewedQuestsList, "_root.QuestJournal_mc.aViewedQuests");
-                        for (std::uint32_t i = 0; i < viewedQuestsList.GetArraySize(); ++i) {
-                            RE::GFxValue viewedEntry;
-                            viewedQuestsList.GetElement(i, &viewedEntry);
-                            Serialization::ViewedQuests.insert(viewedEntry.GetString());
-                        }
-                        logger::info("Saving Hide Completed state.");
-                        RE::GFxValue hideCompletedQuests;
-                        menu->uiMovie->GetVariable(&hideCompletedQuests, "_root.QuestJournal_mc.bHideCompleted");
-                        hideCompletedState = hideCompletedQuests.GetBool();
+                        SaveQuestMenuState(menu.get());
                     } else {
                         logger::warn("Couldn't get last displayed quest.");
                     }
@@ -196,27 +223,7 @@ RE::BSEventNotifyControl EventProcessor::ProcessEvent(RE::InputEvent* const* eve
             } else if (dxScanCode == 50 || dxScanCode == 279 || dxScanCode == 32768) {
                 if (ui->IsMenuOpen(Scaleform::QuestMenu::MENU_NAME)) {
                     if (auto menu = ui->GetMenu(Scaleform::QuestMenu::MENU_NAME); menu) {
-                        logger::info("Saving last quest displayed.");
-                        RE::GFxValue lastQuest1;
-                        RE::GFxValue lastQuest2;
-                        menu->uiMovie->GetVariable(&lastQuest1, "_root.QuestJournal_mc.currentQuest");
-                        if (lastQuest1.HasMember("formID")) {
-                            lastQuest1.GetMember("formID", &lastQuest2);
-                            lastQuestFormID = lastQuest2.GetString();
-                            logger::info("Last displayed quest: {}", lastQuestFormID);
-                        }
-                        logger::info("Saving viewed quests.");
-                        RE::GFxValue viewedQuestsList;
-                        menu->uiMovie->GetVariable(&viewedQuestsList, "_root.QuestJournal_mc.aViewedQuests");
-                        for (std::uint32_t i = 0; i < viewedQuestsList.GetArraySize(); ++i) {
-                            RE::GFxValue viewedEntry;
-                            viewedQuestsList.GetElement(i, &viewedEntry);
-                            Serialization::ViewedQuests.insert(viewedEntry.GetString());
-                        }
-                        logger::info("Saving Hide Completed state.");
-                        RE::GFxValue hideCompletedQuests;
-                        menu->uiMovie->GetVariable(&hideCompletedQuests, "_root.QuestJournal_mc.bHideCompleted");
-                        hideCompletedState = hideCompletedQuests.GetBool();
+                        SaveQuestMenuState(menu.get());
                     } else {
                         logger::warn("Couldn't get last displayed quest.");
                     }

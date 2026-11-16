@@ -8,7 +8,7 @@ cmake_minimum_required(VERSION 3.21)
 
 # [BEGIN set_project_name]
 # Set your project name. This will be the name of your SKSE .dll file.
-project(QuestJournalOverhaul VERSION 1.4.0 LANGUAGES CXX)
+project(QuestJournalOverhaul VERSION 1.4.1 LANGUAGES CXX)
 
 # [END set_project_name]
 
